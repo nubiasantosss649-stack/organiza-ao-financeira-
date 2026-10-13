@@ -1,2 +1,152 @@
-# organiza-ao-financeira-
-controle financeiro pessoal,renda e acompanha gasto diario do dia,semana e mes
+# CONTROLE FÁCIL
+
+**Seu dinheiro organizado, sua vida mais tranquila.**
+
+Aplicativo de controle financeiro pessoal (SaaS) com plano Grátis e assinatura Pro, feito para o Brasil.
+Foco em pessoas que querem controlar gastos, organizar dívidas, economizar e melhorar a vida financeira.
+
+> Não há módulos para casais, empresas ou autônomos — por decisão de produto.
+
+## Status por etapa
+
+| Etapa | Conteúdo | Situação |
+|---|---|---|
+| 1 — App básico | Estrutura, layout, autenticação, banco, receitas/despesas, categorias, dashboard, gráficos, metas, plano Grátis | ✅ Concluída |
+| 2 — Recursos Pro | Cartões, dívidas, importação CSV/OFX, análises, assistente IA, limites | ⏳ Telas de apresentação prontas; funcionalidades pendentes |
+| 3 — Assinaturas | Mercado Pago, webhooks, cancelamento, painel admin | ⏳ Tabela de assinaturas e regra de acesso Pro prontas no banco |
+| 4 — Lançamento | Landing final, PWA completo, segurança, deploy | ⏳ Landing básica, manifesto e ícones prontos |
+
+## Tecnologias
+
+- **Next.js 16** (App Router, Server Actions, `proxy.ts`) + **TypeScript** + **Tailwind CSS 4**
+- **Supabase**: PostgreSQL, Auth (e-mail/senha com confirmação) e **Row Level Security**
+- **Zod 4** para validação · **Recharts** para gráficos · **lucide-react** para ícones
+- **Vitest** para testes (unitários e de banco)
+
+## Arquitetura
+
+```
+src/
+  app/
+    (public)/          landing, privacidade, termos
+    (auth)/            entrar, cadastro, recuperar/redefinir senha
+    auth/confirm       confirmação de e-mail e recuperação (token_hash e PKCE)
+    auth/sair          logout (POST)
+    app/               área logada (dashboard, lançamentos, contas, categorias,
+                       orçamentos, metas, perfil, planos, boas-vindas, telas Pro)
+    api/exportar       exportação de dados do usuário (CSV/JSON)
+  components/          UI, formulários, gráficos, navegação
+  lib/
+    money.ts           dinheiro em CENTAVOS inteiros (parse/format/parcelas)
+    dates.ts           datas ISO sem fuso; "hoje" em America/Sao_Paulo
+    finance.ts         regras do dashboard, parcelas, recorrência, orçamentos, metas
+    validation.ts      schemas Zod
+    auth.ts            camada de acesso (usuário e direitos do plano)
+    supabase/          clientes (navegador, servidor e admin)
+  proxy.ts             renova sessão e protege /app
+supabase/
+  migrations/          esquema, RLS, limites de plano, funções do dashboard
+  templates/           e-mails de confirmação e recuperação (pt-BR)
+  tests/               stub do Supabase para testes de banco em Postgres puro
+tests/
+  unit/                cálculos financeiros, validações, CSV, segurança
+  db/                  RLS, isolamento entre usuários, limites e plano Pro
+```
+
+### Decisões importantes
+
+- **Valores em centavos (`bigint`)** em todo o sistema. Nada de `float`: `0,10 + 0,20` dá exatamente `R$ 0,30`.
+  Parcelas distribuem a sobra de centavos nas primeiras (R$ 100 em 3x = 33,34 + 33,33 + 33,33).
+- **Isolamento de dados no banco**: RLS em todas as tabelas + chaves estrangeiras compostas `(user_id, id)`,
+  que impedem referenciar a conta/categoria/meta de outra pessoa mesmo com acesso direto à API.
+- **Limites do plano aplicados no banco** (triggers), não só na interface. Os limites ficam na tabela `plans`
+  e podem ser alterados sem mexer no código. Limites **nunca escondem ou apagam** dados: só impedem criar novos
+  itens acima do limite (ex.: após o fim do Pro, todas as contas continuam visíveis).
+- **Acesso Pro** só existe enquanto houver assinatura com período pago vigente (`current_period_end > now()`).
+  Assinatura `pending` não libera nada. Usuários não conseguem gravar na tabela de assinaturas.
+- **Teste Pro de 7 dias** está cadastrado em `app_settings` como **desativado**, até a Etapa 3 controlar sua duração.
+- **Checkout desativado** (`BILLING_ENABLED=false`): a tela de planos mostra “Assinatura disponível em breve” —
+  sem cobranças nem promessas falsas.
+
+### Regras do dashboard (hipóteses exibidas ao usuário)
+
+- **Saldo total** = saldo inicial das contas + receitas recebidas − despesas pagas.
+- **Receitas/Despesas do mês** = apenas o que foi recebido/pago no mês.
+- **A pagar** = despesas pendentes que vencem de hoje até o fim do mês.
+- **Vencidas** = despesas pendentes com vencimento anterior a hoje.
+- **Valor disponível** = saldo total − (a pagar + vencidas).
+- **Gastos por categoria e orçamentos** consideram despesas pagas **e pendentes** do mês (valor comprometido).
+
+## Plano Grátis (Etapa 1)
+
+Cadastro e login · dashboard · registro manual **ilimitado** · categorias personalizadas · gráficos básicos ·
+**até 2 contas/carteiras** · **1 orçamento ativo** · **1 meta ativa** · histórico · exportação de dados.
+Sem prazo de expiração. (As 3 análises demonstrativas de IA chegam com a Etapa 2.)
+
+## Como rodar localmente
+
+Pré-requisitos: Node 22, Docker (para o Supabase local).
+
+```bash
+npm install
+cp .env.example .env.local
+npx supabase start          # sobe Postgres + Auth + API locais e aplica as migrações
+# copie a URL e a publishable/anon key exibidas para o .env.local
+npm run dev                 # http://localhost:3000
+```
+
+E-mails de confirmação no ambiente local aparecem no Mailpit (endereço exibido pelo `supabase start`).
+
+### Usando um projeto Supabase na nuvem
+
+1. Crie o projeto em supabase.com (região São Paulo recomendada).
+2. Aplique as migrações: `npx supabase link --project-ref <ref>` e `npx supabase db push`
+   (ou cole o arquivo de `supabase/migrations` no SQL Editor).
+3. **Authentication → URL Configuration**: Site URL = sua URL; Redirect URLs = `https://seu-dominio/**`.
+4. **Authentication → Email Templates**: use os modelos de `supabase/templates/` (links para `/auth/confirm?token_hash=...`).
+5. Ative “Confirm email” e defina senha mínima de 8 caracteres com letras e números.
+6. Configure um SMTP próprio (o SMTP padrão do Supabase tem limite baixo de envio).
+7. Preencha as variáveis de ambiente na hospedagem. **`SUPABASE_SECRET_KEY` nunca deve ser exposta ao navegador.**
+
+## Testes
+
+```bash
+npm run lint        # ESLint
+npm run typecheck   # tipos (inclui rotas)
+npm test            # 57 testes unitários: dinheiro, datas, parcelas, dashboard, metas, validação, CSV, segurança
+npm run test:db     # 18 testes de banco num PostgreSQL temporário: RLS, isolamento, limites, Pro, cascata
+npm run build       # build de produção
+```
+
+O `test:db` precisa do PostgreSQL instalado localmente (usa `initdb`/`pg_ctl`). O CI do GitHub roda tudo
+automaticamente (`.github/workflows/ci.yml`).
+
+### Verificação ponta a ponta realizada (Etapa 1)
+
+Com Postgres 17 + GoTrue (Auth) + PostgREST oficiais do Supabase e o app em modo produção, um roteiro em
+navegador real (Playwright) passou em 32 de 32 verificações: cadastro com validação, bloqueio de login antes da
+confirmação, confirmação por e-mail, onboarding, conta inicial, compra parcelada sem perder centavos, saldo,
+disponível, contas vencidas, busca e filtros, marcar como pago, limite de 2 contas e 1 orçamento, meta com depósito,
+tela Pro com preço, exportação CSV/JSON, layout no celular sem rolagem horizontal, isolamento entre dois usuários,
+recuperação de senha, login com nova senha e exclusão de conta.
+
+## Segurança e LGPD (Etapa 1)
+
+- Senhas gerenciadas pelo Supabase Auth; confirmação de e-mail obrigatória; senha ≥ 8 com letras e números.
+- Sessão renovada no `proxy.ts`; cada página/ação valida o usuário no servidor (`getUser`).
+- RLS + grants por coluna (usuário só altera nome e onboarding no perfil); anônimos não leem dados financeiros.
+- Redirecionamentos internos validados (sem *open redirect*); logout via POST.
+- Cabeçalhos de segurança (HSTS, X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy).
+- Exportação CSV protegida contra injeção de fórmulas; respostas privadas com `no-store`.
+- Exportação de dados, encerramento de sessões e exclusão de conta (com senha + confirmação) em **Meu perfil**.
+- Política de Privacidade e Termos de Uso em versão-base — **revisar com advogado** e incluir razão social/CNPJ.
+
+## O que falta (próximas etapas)
+
+- **Etapa 2**: cartões e faturas (sem contar gasto em dobro), dívidas e simulador, importação CSV/OFX com
+  duplicatas, assistente IA com limite configurável e registro de uso, desafios financeiros, alertas.
+- **Etapa 3**: Mercado Pago (assinatura recorrente R$ 19,90), webhooks validados e idempotentes, histórico
+  de cobranças, cancelamento/reativação, painel administrativo (sem acesso a dados financeiros privados),
+  teste Pro de 7 dias controlado. **Serão necessárias as credenciais de teste do Mercado Pago.**
+- **Etapa 4**: landing com capturas reais, service worker/instalação PWA, CSP, testes finais, domínio e deploy.
+- Pequenos itens: transferências entre contas; edição em lote de séries recorrentes.
