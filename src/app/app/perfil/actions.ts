@@ -81,7 +81,8 @@ export async function deleteMyAccount(_prev: ActionState, form: FormData): Promi
   const { data: subs } = await supabase
     .from("subscriptions")
     .select("id")
-    .in("status", ["active", "past_due", "pending"])
+    .in("status", ["active", "past_due", "paused"])
+    .neq("provider", "trial")
     .limit(1);
   if (subs?.length) {
     return { error: "Você tem uma assinatura ativa. Cancele a assinatura antes de excluir a conta." };

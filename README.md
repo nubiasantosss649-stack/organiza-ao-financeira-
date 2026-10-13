@@ -13,7 +13,7 @@ Foco em pessoas que querem controlar gastos, organizar dívidas, economizar e me
 |---|---|---|
 | 1 — App básico | Estrutura, layout, autenticação, banco, receitas/despesas, categorias, dashboard, gráficos, metas, plano Grátis | ✅ Concluída |
 | 2 — Recursos Pro | Cartões, dívidas, importação CSV/OFX, análises, assistente IA, limites | ✅ Concluída (liberação para clientes depende da Etapa 3) |
-| 3 — Assinaturas | Mercado Pago, webhooks, cancelamento, painel admin | ⏳ Tabela de assinaturas e regra de acesso Pro prontas no banco |
+| 3 — Assinaturas | Mercado Pago, webhooks, cancelamento, painel admin | ✅ Implementada · ⚠️ falta validar no sandbox do Mercado Pago (checkout desligado até lá) |
 | 4 — Lançamento | Landing final, PWA completo, segurança, deploy | ⏳ Landing básica, manifesto e ícones prontos |
 
 ## Tecnologias
@@ -112,6 +112,66 @@ sempre permitido**, e pagar faturas/dívidas já cadastradas continua liberado a
 > `insert into subscriptions (user_id, plan_id, provider, status, started_at, current_period_end)
 > values ('<uuid>', 'pro', 'manual', 'active', now(), now() + interval '30 days');`
 
+## Assinaturas e painel administrativo (Etapa 3)
+
+### Como funciona a cobrança
+
+1. **Checkout** (`/app/assinatura`): o servidor cria uma assinatura mensal no Mercado Pago (API `/preapproval`,
+   sem plano associado, pagamento pendente, R$ em centavos convertidos sem ponto flutuante) com
+   `external_reference` = id do usuário e redireciona para o `init_point`. O cartão é digitado no Mercado Pago;
+   o Controle Fácil nunca recebe dados de cartão.
+2. **Retorno** (`/app/assinatura/retorno`): **não ativa nada**. Só consulta o status no servidor do provedor.
+3. **Webhook** (`POST /api/webhooks/mercadopago`): valida a assinatura `x-signature` (HMAC-SHA256 do manifesto
+   `id:…;request-id:…;ts:…;` com a chave secreta), registra a notificação (idempotência por `x-request-id`),
+   **consulta o recurso no Mercado Pago** (nunca confia no corpo recebido) e aplica no banco com funções
+   idempotentes (`billing_apply_subscription_status`, `billing_record_payment`), executáveis só pelo servidor.
+4. **Ativação**: o Pro é liberado **somente por pagamento aprovado**; cada aprovação libera 1 mês a partir da
+   data do pagamento. Pagamento repetido não estende o período duas vezes.
+5. **Recusa**: assinatura fica "em atraso", o cliente vê o aviso e mantém o acesso até o fim do período já pago.
+6. **Cancelamento**: um clique (com confirmação) em "Minha assinatura"; cancela no Mercado Pago, registra no
+   histórico e mantém o Pro até o fim do período pago. Depois a conta volta ao Grátis **sem apagar dados**.
+7. **Reativação**: assinatura pausada volta a cobrar; cancelada faz nova contratação.
+8. **Estorno**: remove o período que aquele pagamento havia liberado.
+9. **Exclusão de conta**: bloqueada enquanto houver assinatura ativa (evita cobrança após excluir).
+
+Tabelas: `subscriptions` (usuário, provedor, plano, status, início, próxima cobrança, cancelamento, preço
+contratado), `subscription_events` (histórico de alterações), `billing_payments` (histórico de cobranças),
+`webhook_events` (logs sem dados sensíveis), `promotions`, `admins`, `admin_audit_log`.
+
+### Teste gratuito do Pro
+
+7 dias (configurável de 1 a 30), **sem cartão e sem cobrança automática**: um por conta, nunca para quem já
+assinou, termina sozinho (o acesso depende só da data de término, verificada no banco). Vem **desligado**;
+o administrador liga em `/admin/planos`.
+
+### Ofertas com prazo real
+
+Criadas em `/admin/planos` com início e fim (horário de Brasília). Só aparecem dentro do período, com o
+preço normal riscado e a data de término. O preço promocional vale para quem assinar no prazo e é mantido
+nas renovações. Sem contagem regressiva falsa nem desconto fictício.
+
+### Painel administrativo (`/admin`)
+
+- Acesso só para usuários na tabela `admins`; os demais recebem "página não encontrada". Para tornar-se
+  administrador: `insert into public.admins (user_id) values ('<seu uuid>');` (no SQL Editor do Supabase).
+- Visão geral: usuários, assinantes ativos, gratuitos, em teste, conversão, **faturamento confirmado**
+  (pagamentos aprovados) separado do **projetado** (MRR), pagamentos pendentes/recusados, checkouts não
+  concluídos, cancelamentos, custo estimado de IA e faturamento por mês.
+- Planos: preço, limites (contas, orçamentos, metas, análises de IA e período) e recursos de cada plano,
+  sem alterar código. Alterar o preço vale para **novas** assinaturas.
+- Teste gratuito e ofertas; logs de webhooks, eventos de assinatura e ações de administradores (auditoria).
+- **Nenhum acesso aos dados financeiros dos clientes**: as funções do painel retornam só agregados e o RLS
+  continua impedindo o administrador de ler lançamentos de terceiros (coberto por teste).
+
+### Configurar o Mercado Pago (ambiente de testes primeiro)
+
+1. Em *Suas integrações*, crie uma aplicação (produto: Assinaturas) e copie o **Access Token de teste**.
+2. Em *Webhooks*, cadastre `https://SEU-DOMINIO/api/webhooks/mercadopago`, marque os eventos de
+   **Planos e assinaturas** (assinaturas e pagamentos recorrentes) e copie a **assinatura secreta**.
+3. Defina `MERCADOPAGO_ACCESS_TOKEN`, `MERCADOPAGO_WEBHOOK_SECRET` e mantenha `BILLING_ENABLED=false`.
+4. Teste o ciclo completo com usuários de teste do Mercado Pago (aprovação, recusa, cancelamento).
+   Só então use `BILLING_ENABLED=true` e troque para as credenciais de produção.
+
 ## Plano Grátis (Etapa 1)
 
 Cadastro e login · dashboard · registro manual **ilimitado** · categorias personalizadas · gráficos básicos ·
@@ -148,11 +208,14 @@ E-mails de confirmação no ambiente local aparecem no Mailpit (endereço exibid
 ```bash
 npm run lint        # ESLint
 npm run typecheck   # tipos (inclui rotas)
-npm test            # 89 testes unitários: dinheiro, datas, parcelas, dashboard, metas, validação, CSV,
+npm test            # 103 testes unitários (inclui assinatura do webhook, status e adaptador do Mercado Pago)
+                    # e também: dinheiro, datas, parcelas, dashboard, metas, validação, CSV,
                     # faturas, simulador de dívidas, parsers OFX/CSV, duplicatas, categorização,
                     # recorrências, projeção, contexto e chamada da IA (cliente simulado)
-npm run test:db     # 31 testes de banco num PostgreSQL temporário: RLS, isolamento, limites, Pro,
-                    # recursos Pro protegidos, faturas sem contagem dupla, importação, limites de IA
+npm run test:db     # 47 testes de banco num PostgreSQL temporário: RLS, isolamento, limites, Pro,
+                    # recursos Pro protegidos, faturas sem contagem dupla, importação, limites de IA,
+                    # cobranças (ativação só com pagamento aprovado, idempotência, recusa, cancelamento,
+                    # estorno), teste Pro, promoções e permissões do painel admin
 npm run build       # build de produção
 ```
 
@@ -182,6 +245,23 @@ visíveis após o fim do Pro e isolamento entre usuários. O roteiro da Etapa 1 
 **Não verificado:** chamada real à API do Claude (sem chave neste ambiente) — o formato da requisição foi
 validado contra os tipos do SDK oficial `@anthropic-ai/sdk` e por testes com cliente simulado.
 
+### Verificação ponta a ponta (Etapa 3)
+
+Com um **simulador local** da API de assinaturas do Mercado Pago (que também envia webhooks assinados),
+30 de 30 verificações: preço e condições claras, redirecionamento ao checkout, assinatura criada com valor
+em BRL/mês e referência ao usuário, retorno sem pagar **não** ativa o Pro, pagamento aprovado via webhook
+ativa o Pro, histórico de cobranças, notificação duplicada processada uma vez, assinatura inválida rejeitada
+(401), recusa com aviso e acesso mantido, nova tentativa aprovada, exclusão de conta exige cancelar,
+cancelamento mantendo o Pro até o fim, volta ao Grátis depois, `/admin` invisível para não administradores,
+métricas confirmado × projetado sem e-mails de clientes, edição de limite de IA, oferta com prazo, teste de
+7 dias sem cobrança, assinatura com preço promocional e layout no celular. Etapas 1 (32/32) e 2 (45/45)
+continuaram passando.
+
+**Não verificado (bloqueado neste ambiente):** chamadas reais à API e ao sandbox do Mercado Pago — a rede
+deste ambiente bloqueia `api.mercadopago.com` e ainda não há credenciais de teste. O formato das requisições,
+dos status e da assinatura do webhook segue a documentação pública do Mercado Pago, mas **precisa ser
+validado no sandbox antes de ligar `BILLING_ENABLED`**.
+
 ## Segurança e LGPD (Etapa 1)
 
 - Senhas gerenciadas pelo Supabase Auth; confirmação de e-mail obrigatória; senha ≥ 8 com letras e números.
@@ -197,8 +277,8 @@ validado contra os tipos do SDK oficial `@anthropic-ai/sdk` e por testes com cli
 
 - **Pendências da Etapa 2**: desafios financeiros nas metas; alertas de contas por e-mail/notificação
   (hoje os alertas aparecem no painel); integração bancária via Open Finance (só a interface está pronta).
-- **Etapa 3**: Mercado Pago (assinatura recorrente R$ 19,90), webhooks validados e idempotentes, histórico
-  de cobranças, cancelamento/reativação, painel administrativo (sem acesso a dados financeiros privados),
-  teste Pro de 7 dias controlado. **Serão necessárias as credenciais de teste do Mercado Pago.**
+- **Pendências da Etapa 3**: validar o fluxo no sandbox do Mercado Pago (credenciais de teste + liberar
+  `api.mercadopago.com` na rede) e só então ligar `BILLING_ENABLED`; e-mails transacionais de cobrança
+  (recibo, recusa, cancelamento); conciliação periódica com o provedor caso algum webhook se perca.
 - **Etapa 4**: landing com capturas reais, service worker/instalação PWA, CSP, testes finais, domínio e deploy.
 - Pequenos itens: transferências entre contas; edição em lote de séries recorrentes.

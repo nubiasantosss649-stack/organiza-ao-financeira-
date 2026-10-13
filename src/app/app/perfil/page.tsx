@@ -21,7 +21,7 @@ export default async function ProfilePage() {
       </Card>
 
       <Card>
-        <CardHeader title="Plano" description={ent.plan_name} action={<Link href="/app/planos" className="text-sm font-semibold text-navy-600 hover:underline">Ver planos</Link>} />
+        <CardHeader title="Plano" description={ent.plan_name} action={<Link href="/app/assinatura" className="text-sm font-semibold text-navy-600 hover:underline">Gerenciar assinatura</Link>} />
         <p className="text-sm text-slate-600">
           {ent.plan_id === "free"
             ? "Você usa o plano Grátis, sem prazo de expiração."

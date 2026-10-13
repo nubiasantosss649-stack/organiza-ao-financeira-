@@ -27,5 +27,6 @@ export const PRO_NAV: NavItem[] = [
 
 export const ACCOUNT_NAV: NavItem[] = [
   { href: "/app/planos", label: "Planos", icon: "crown" },
+  { href: "/app/assinatura", label: "Minha assinatura", icon: "card" },
   { href: "/app/perfil", label: "Meu perfil", icon: "user" },
 ];

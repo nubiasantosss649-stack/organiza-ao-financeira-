@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Check, Sparkles } from "lucide-react";
 import { Badge, Card, PageHeader } from "@/components/ui/card";
 import { Alert } from "@/components/ui/alert";
@@ -45,12 +46,15 @@ export default async function PlansPage() {
                   <li className="flex gap-2"><Check className="h-4 w-4 shrink-0 text-money-600" aria-hidden />Sem prazo de expiração e sem cartão de crédito</li>
                 )}
               </ul>
+              {isPro && current ? (
+                <Link href="/app/assinatura" className="mt-5 flex h-11 items-center justify-center rounded-xl border border-slate-300 font-semibold hover:bg-slate-50">Gerenciar assinatura</Link>
+              ) : null}
               {isPro && !current ? (
                 <div className="mt-5">
                   {checkout ? (
-                    <a href="/app/assinatura" className="flex h-12 items-center justify-center gap-2 rounded-xl bg-money-500 font-semibold text-white hover:bg-money-600">
+                    <Link href="/app/assinatura" className="flex h-12 items-center justify-center gap-2 rounded-xl bg-money-500 font-semibold text-white hover:bg-money-600">
                       <Sparkles className="h-4 w-4" aria-hidden /> Assinar por {formatBRL(p.price_cents)}/mês
-                    </a>
+                    </Link>
                   ) : (
                     <>
                       <button disabled className="flex h-12 w-full cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-slate-200 font-semibold text-slate-500">

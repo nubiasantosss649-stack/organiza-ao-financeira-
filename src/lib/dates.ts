@@ -158,3 +158,8 @@ export function formatPeriodLabel(kind: PeriodKind, ref: ISODate): string {
       return String(parseISO(ref).y);
   }
 }
+
+/** Instante atual em ms (componentes de servidor; isolado para manter a renderização previsível). */
+export function nowMs(): number {
+  return Date.now();
+}

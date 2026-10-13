@@ -15,7 +15,7 @@ export async function listPlans(): Promise<Plan[]> {
 
 /** Indica se o checkout de assinatura está disponível (Etapa 3: integração com Mercado Pago). */
 export function isCheckoutAvailable(): boolean {
-  return process.env.BILLING_ENABLED === "true";
+  return process.env.BILLING_ENABLED === "true" && Boolean(process.env.MERCADOPAGO_ACCESS_TOKEN);
 }
 
 export const FEATURE_LABELS: Record<string, string> = {

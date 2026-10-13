@@ -34,7 +34,8 @@ export async function proxy(request: NextRequest) {
   const isLoggedIn = Boolean(data?.claims?.sub);
   const { pathname, search } = request.nextUrl;
 
-  if (!isLoggedIn && (pathname === "/app" || pathname.startsWith("/app/"))) {
+  const isPrivate = ["/app", "/admin"].some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  if (!isLoggedIn && isPrivate) {
     const target = request.nextUrl.clone();
     target.pathname = "/entrar";
     target.search = `?next=${encodeURIComponent(pathname + search)}`;
@@ -48,7 +49,7 @@ export async function proxy(request: NextRequest) {
     return copyCookies(response, NextResponse.redirect(target));
   }
 
-  if (pathname.startsWith("/app") || pathname.startsWith("/api")) {
+  if (isPrivate || pathname.startsWith("/api")) {
     response.headers.set("Cache-Control", "private, no-store");
   }
   return response;
@@ -61,6 +62,6 @@ function copyCookies(from: NextResponse, to: NextResponse) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|icons/|manifest.webmanifest|sw.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!api/webhooks|_next/static|_next/image|favicon.ico|icons/|manifest.webmanifest|sw.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };
