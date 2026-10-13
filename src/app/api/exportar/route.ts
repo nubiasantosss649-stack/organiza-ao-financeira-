@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     return rows;
   }
 
-  const [profile, accounts, categories, transactions, budgets, goals, goalDeposits, subscriptions] = await Promise.all([
+  const [profile, accounts, categories, transactions, budgets, goals, goalDeposits, subscriptions, cards, invoicePayments, debts, debtPayments, imports, aiUsage] = await Promise.all([
     all("profiles"),
     all("accounts"),
     all("categories"),
@@ -34,12 +34,19 @@ export async function GET(request: NextRequest) {
     all("goals"),
     all("goal_deposits"),
     all("subscriptions"),
+    all("credit_cards"),
+    all("card_invoice_payments"),
+    all("debts"),
+    all("debt_payments"),
+    all("statement_imports"),
+    all("ai_usage"),
   ]);
   const stamp = todayISO();
   const headers = { "Cache-Control": "private, no-store" };
 
   if (format === "csv") {
     const accName = new Map(accounts.map((a) => [a.id, a.name]));
+    const cardName = new Map(cards.map((c) => [c.id, `Cartão ${c.name}`]));
     const catName = new Map(categories.map((c) => [c.id, c.name]));
     const csv = toCSV(
       ["Data", "Descrição", "Tipo", "Valor (R$)", "Situação", "Pago em", "Categoria", "Conta", "Parcela", "Observações"],
@@ -51,7 +58,7 @@ export async function GET(request: NextRequest) {
         t.status === "paid" ? "Pago" : "Pendente",
         t.paid_on ?? "",
         t.category_id ? catName.get(t.category_id) ?? "" : "Sem categoria",
-        accName.get(t.account_id) ?? "",
+        (t.card_id ? cardName.get(t.card_id) : accName.get(t.account_id)) ?? "",
         t.installment_number ? `${t.installment_number}/${t.installment_total}` : "",
         t.notes ?? "",
       ]),
@@ -71,6 +78,10 @@ export async function GET(request: NextRequest) {
     user: { id: auth.user.id, email: auth.user.email, created_at: auth.user.created_at },
     profile: profile[0] ?? null,
     accounts, categories, transactions, budgets, goals, goal_deposits: goalDeposits, subscriptions,
+    credit_cards: cards, card_invoice_payments: invoicePayments, debts, debt_payments: debtPayments,
+    statement_imports: imports,
+    // Somente registros de uso (sem perguntas/respostas, que não são armazenadas).
+    ai_usage: aiUsage,
   };
   return new NextResponse(JSON.stringify(payload, null, 2), {
     headers: {

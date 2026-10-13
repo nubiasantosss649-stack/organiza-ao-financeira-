@@ -92,3 +92,52 @@ export function budgetSpending(budget: Budget, totals: CategoryTotal[]): number 
   if (budget.category_id === null) return totals.reduce((acc, t) => acc + t.total_cents, 0);
   return totals.find((t) => t.category_id === budget.category_id)?.total_cents ?? 0;
 }
+
+export interface CardSummary {
+  id: string;
+  name: string;
+  limit_cents: number;
+  closing_day: number;
+  due_day: number;
+  color: string;
+  archived_at: string | null;
+  used_cents: number;
+}
+
+export async function listCards(opts: { includeArchived?: boolean } = {}): Promise<CardSummary[]> {
+  const supabase = await createClient();
+  let q = supabase.from("card_summaries").select("id, name, limit_cents, closing_day, due_day, color, archived_at, used_cents").order("name");
+  if (!opts.includeArchived) q = q.is("archived_at", null);
+  const { data, error } = await q;
+  if (error) throw new Error("Falha ao carregar cartões.");
+  return (data ?? []).map((c) => ({ ...c, limit_cents: Number(c.limit_cents), used_cents: Number(c.used_cents) })) as CardSummary[];
+}
+
+export interface OpenInvoice {
+  card_id: string;
+  card_name: string;
+  invoice_due_on: ISODate;
+  remaining_cents: number;
+}
+
+export async function openCardInvoices(until: ISODate): Promise<OpenInvoice[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("open_card_invoices", { p_until: until });
+  if (error) throw new Error("Falha ao carregar faturas.");
+  return (data ?? []).map((r: Record<string, string | number>) => ({
+    card_id: String(r.card_id),
+    card_name: String(r.card_name),
+    invoice_due_on: String(r.invoice_due_on),
+    remaining_cents: Number(r.remaining_cents),
+  }));
+}
+
+/** Nome da origem de um lançamento: conta ou "Cartão X". */
+export function sourceName(
+  tx: { account_id: string | null; card_id: string | null },
+  accounts: Map<string, { name: string }>,
+  cards: Map<string, { name: string }>,
+): string | undefined {
+  if (tx.card_id) return `Cartão ${cards.get(tx.card_id)?.name ?? ""}`.trim();
+  return tx.account_id ? accounts.get(tx.account_id)?.name : undefined;
+}

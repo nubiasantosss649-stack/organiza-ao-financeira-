@@ -10,6 +10,12 @@ export function friendlyDbError(error: { code?: string; message?: string } | nul
   if (msg.includes("PLAN_LIMIT:goals")) {
     return "O plano Grátis permite 1 meta ativa. Conclua ou arquive a atual, ou conheça o Pro para ter metas ilimitadas.";
   }
+  if (msg.includes("FEATURE_REQUIRED:")) return "Este recurso faz parte do Controle Fácil Pro.";
+  if (msg.includes("AI_CONSENT_REQUIRED")) return "Autorize o uso dos seus dados agregados pelo assistente antes de pedir uma análise.";
+  if (msg.includes("AI_LIMIT_REACHED")) return "Você usou todas as análises de IA disponíveis no seu plano neste período.";
+  if (msg.includes("transactions_one_source")) return "Escolha uma conta ou um cartão para o lançamento.";
+  if (msg.includes("transactions_card_is_expense")) return "No cartão de crédito só é possível registrar despesas.";
+  if (msg.includes("row-level security")) return "Você não tem permissão para esta ação no seu plano atual.";
   if (msg.includes("CATEGORY_KIND_MISMATCH")) return "A categoria escolhida não corresponde ao tipo do lançamento.";
   if (msg.includes("BUDGET_CATEGORY_NOT_EXPENSE")) return "Orçamentos só podem usar categorias de despesa.";
   if (error?.code === "23505") return "Já existe um registro com esse nome.";

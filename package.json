@@ -15,6 +15,7 @@
     "db:reset": "supabase db reset"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.133.0",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.117.3",
     "lucide-react": "^1.56.0",

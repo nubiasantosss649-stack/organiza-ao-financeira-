@@ -13,7 +13,14 @@ export interface MonthlyPoint {
   despesas: number;
 }
 
-const compact = new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 });
+/** Eixo em reais compacto: 4500 → "4,5 mil", 1200000 → "1,2 mi". */
+export function axisBRL(reais: number): string {
+  const abs = Math.abs(reais);
+  const fmt = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+  if (abs >= 1_000_000) return `${fmt(reais / 1_000_000)} mi`;
+  if (abs >= 1_000) return `${fmt(reais / 1_000)} mil`;
+  return fmt(reais);
+}
 
 export function MonthlyChart({ data }: { data: MonthlyPoint[] }) {
   return (
@@ -26,9 +33,9 @@ export function MonthlyChart({ data }: { data: MonthlyPoint[] }) {
           <YAxis
             tickLine={false}
             axisLine={false}
-            width={44}
+            width={56}
             tick={{ fill: "#64748b", fontSize: 12 }}
-            tickFormatter={(v: number) => compact.format(v / 100)}
+            tickFormatter={(v: number) => axisBRL(v / 100)}
           />
           <Tooltip
             cursor={{ fill: "rgba(15, 39, 71, 0.05)" }}

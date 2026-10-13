@@ -52,3 +52,12 @@ export async function authedClient() {
   if (!data.user) throw new Error("NOT_AUTHENTICATED");
   return { supabase, user: data.user };
 }
+
+/** Para Server Actions de recursos Pro: valida no servidor (o banco valida de novo via RLS). */
+export async function requireFeature(feature: string) {
+  const ctx = await authedClient();
+  const { data } = await ctx.supabase.rpc("my_entitlements");
+  const features: string[] = (data as Entitlements | null)?.features ?? [];
+  if (!features.includes(feature)) throw new Error(`FEATURE_REQUIRED:${feature}`);
+  return ctx;
+}

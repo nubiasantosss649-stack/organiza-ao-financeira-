@@ -6,7 +6,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { TransactionRow } from "@/components/app/transaction-row";
 import { toggleTransactionStatus } from "./actions";
 import { createClient } from "@/lib/supabase/server";
-import { listAccounts, listCategories } from "@/lib/queries";
+import { listAccounts, listCards, listCategories, sourceName } from "@/lib/queries";
 import {
   formatDateBR, formatPeriodLabel, isISODate, periodRange, shiftPeriod, todayISO, type PeriodKind,
 } from "@/lib/dates";
@@ -49,7 +49,7 @@ export default async function TransactionsPage({ searchParams }: PageProps<"/app
   if (category) query = query.eq("category_id", category);
   if (q) query = query.ilike("description", `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
 
-  const [{ data, error }, totalsRes, accounts, categories] = await Promise.all([
+  const [{ data, error }, totalsRes, accounts, categories, cards] = await Promise.all([
     query
       .order("occurred_on", { ascending: false })
       .order("created_at", { ascending: false })
@@ -59,6 +59,7 @@ export default async function TransactionsPage({ searchParams }: PageProps<"/app
     }),
     listAccounts({ includeArchived: true }),
     listCategories({ includeArchived: true }),
+    listCards({ includeArchived: true }),
   ]);
   if (error) throw new Error("Falha ao carregar lançamentos.");
 
@@ -69,6 +70,7 @@ export default async function TransactionsPage({ searchParams }: PageProps<"/app
   const count = Number(totals.tx_count);
   const catById = new Map(categories.map((c) => [c.id, c]));
   const accById = new Map(accounts.map((a) => [a.id, a]));
+  const cardById = new Map(cards.map((c) => [c.id, c]));
 
   const baseParams = { periodo: period, ref, q: q || undefined, tipo: kind ?? undefined, status: status ?? undefined, conta: account ?? undefined, categoria: category ?? undefined };
   const href = (over: Record<string, string | undefined>) => {
@@ -175,9 +177,9 @@ export default async function TransactionsPage({ searchParams }: PageProps<"/app
                       key={t.id}
                       tx={t}
                       category={t.category_id ? catById.get(t.category_id) : undefined}
-                      accountName={accById.get(t.account_id)?.name}
+                      accountName={sourceName(t, accById, cardById)}
                       today={today}
-                      actions={
+                      actions={t.card_id ? undefined :
                         <form action={toggleTransactionStatus}>
                           <input type="hidden" name="id" value={t.id} />
                           <button

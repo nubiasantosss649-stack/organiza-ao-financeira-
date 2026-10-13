@@ -148,9 +148,7 @@ export default async function LandingPage({ searchParams }: PageProps<"/">) {
               </div>
             ))}
           </div>
-          <p className="mt-6 text-center text-sm text-slate-500">
-            Os recursos Pro estão sendo liberados em etapas. Você será avisado no app quando cada um estiver disponível.
-          </p>
+
         </div>
       </section>
 

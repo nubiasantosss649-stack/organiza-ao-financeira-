@@ -34,7 +34,10 @@ export interface Category {
 
 export interface Transaction {
   id: string;
-  account_id: string;
+  account_id: string | null;
+  card_id: string | null;
+  invoice_due_on: ISODate | null;
+  import_id: string | null;
   category_id: string | null;
   kind: TxKind;
   amount_cents: number;

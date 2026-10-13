@@ -12,7 +12,7 @@ Foco em pessoas que querem controlar gastos, organizar dívidas, economizar e me
 | Etapa | Conteúdo | Situação |
 |---|---|---|
 | 1 — App básico | Estrutura, layout, autenticação, banco, receitas/despesas, categorias, dashboard, gráficos, metas, plano Grátis | ✅ Concluída |
-| 2 — Recursos Pro | Cartões, dívidas, importação CSV/OFX, análises, assistente IA, limites | ⏳ Telas de apresentação prontas; funcionalidades pendentes |
+| 2 — Recursos Pro | Cartões, dívidas, importação CSV/OFX, análises, assistente IA, limites | ✅ Concluída (liberação para clientes depende da Etapa 3) |
 | 3 — Assinaturas | Mercado Pago, webhooks, cancelamento, painel admin | ⏳ Tabela de assinaturas e regra de acesso Pro prontas no banco |
 | 4 — Lançamento | Landing final, PWA completo, segurança, deploy | ⏳ Landing básica, manifesto e ícones prontos |
 
@@ -77,11 +77,46 @@ tests/
 - **Valor disponível** = saldo total − (a pagar + vencidas).
 - **Gastos por categoria e orçamentos** consideram despesas pagas **e pendentes** do mês (valor comprometido).
 
+## Recursos Pro (Etapa 2)
+
+Todos os recursos Pro são protegidos **no banco** (RLS + triggers), não só na interface:
+criar/alterar cartões, dívidas e importações exige o recurso no plano. **Ler e excluir dados próprios é
+sempre permitido**, e pagar faturas/dívidas já cadastradas continua liberado após o fim do Pro.
+
+- **Cartões de crédito** (`/app/cartoes`): limite, fechamento, vencimento, compras à vista e parceladas,
+  faturas (aberta, fechada, paga, vencida), limite disponível e pagamento de fatura.
+  *Sem contagem dupla*: a compra é a despesa (na data da compra); pagar a fatura só reduz o saldo da conta.
+  Compras feitas a partir do dia de fechamento vão para a fatura seguinte. Faturas em aberto entram em
+  "a pagar" no painel.
+- **Minhas dívidas** (`/app/dividas`): saldo devedor, juros mensais, parcelas, pagamentos (com opção de
+  lançar como despesa sem duplicar), simulação de quitação antecipada (extra mensal e valor à vista),
+  comparação Avalanche × Bola de neve, plano mês a mês e gráfico de evolução. **Toda simulação lista as hipóteses.**
+- **Importação de extratos** (`/app/importar`): CSV (vários layouts brasileiros) e OFX 1.x/2.x, leitura
+  UTF-8 ou Windows-1252, até 1 MB / 2.000 linhas. Prévia com categoria sugerida (histórico do usuário →
+  regras por palavra-chave), correção manual, detecção de duplicatas (já importadas e possíveis duplicatas
+  manuais) e "desfazer importação". Arquitetura pronta para Open Finance (`BankConnector`), **não implementada**.
+- **Relatórios** (`/app/relatorios`): 12 meses, comparação por categoria, assinaturas recorrentes,
+  projeção de 3 meses com hipóteses e exportação CSV (verificada no servidor).
+- **Controle Fácil IA** (`/app/ia`): exige **autorização explícita**; envia ao Claude apenas um resumo
+  agregado (totais por mês/categoria, orçamentos, metas, dívidas, nomes de recorrentes) — nunca nome,
+  e-mail, ids ou lançamentos individuais. Perguntas e respostas não são armazenadas; só o uso
+  (tokens e custo estimado). O prompt proíbe inventar dados, prometer ganhos ou realizar pagamentos.
+  - Grátis: 3 análises prontas no total. Pro: análises prontas + perguntas livres, 20 por mês.
+  - Limites ficam na tabela `plans` (`ai_analyses_limit`, `ai_limit_period`) e são aplicados no banco
+    (`ai_reserve`). Falhas, recusas e "sem dados" não descontam. A conclusão do uso (`ai_finish`) só
+    pode ser feita pelo servidor (service role), então o usuário não consegue "estornar" uma análise.
+  - Modelo padrão `claude-opus-5-5` (troque com `AI_MODEL`), esforço `medium`, e **fallback automático
+    em caso de recusa** (`fallbacks: "default"`).
+
+> Até a Etapa 3 não há como assinar pelo app. Para testar o Pro, insira uma assinatura manual no banco:
+> `insert into subscriptions (user_id, plan_id, provider, status, started_at, current_period_end)
+> values ('<uuid>', 'pro', 'manual', 'active', now(), now() + interval '30 days');`
+
 ## Plano Grátis (Etapa 1)
 
 Cadastro e login · dashboard · registro manual **ilimitado** · categorias personalizadas · gráficos básicos ·
 **até 2 contas/carteiras** · **1 orçamento ativo** · **1 meta ativa** · histórico · exportação de dados.
-Sem prazo de expiração. (As 3 análises demonstrativas de IA chegam com a Etapa 2.)
+Sem prazo de expiração. Inclui 3 análises demonstrativas de IA (análises prontas).
 
 ## Como rodar localmente
 
@@ -113,8 +148,11 @@ E-mails de confirmação no ambiente local aparecem no Mailpit (endereço exibid
 ```bash
 npm run lint        # ESLint
 npm run typecheck   # tipos (inclui rotas)
-npm test            # 57 testes unitários: dinheiro, datas, parcelas, dashboard, metas, validação, CSV, segurança
-npm run test:db     # 18 testes de banco num PostgreSQL temporário: RLS, isolamento, limites, Pro, cascata
+npm test            # 89 testes unitários: dinheiro, datas, parcelas, dashboard, metas, validação, CSV,
+                    # faturas, simulador de dívidas, parsers OFX/CSV, duplicatas, categorização,
+                    # recorrências, projeção, contexto e chamada da IA (cliente simulado)
+npm run test:db     # 31 testes de banco num PostgreSQL temporário: RLS, isolamento, limites, Pro,
+                    # recursos Pro protegidos, faturas sem contagem dupla, importação, limites de IA
 npm run build       # build de produção
 ```
 
@@ -130,6 +168,20 @@ disponível, contas vencidas, busca e filtros, marcar como pago, limite de 2 con
 tela Pro com preço, exportação CSV/JSON, layout no celular sem rolagem horizontal, isolamento entre dois usuários,
 recuperação de senha, login com nova senha e exclusão de conta.
 
+### Verificação ponta a ponta (Etapa 2)
+
+Mesma pilha local, com uma API de mensagens **simulada** (via `ANTHROPIC_BASE_URL`) para não gastar com a
+API real: 45 de 45 verificações — telas Pro bloqueadas no Grátis com preço, exportação Pro negada no
+servidor (403), consentimento da IA, 3 análises demonstrativas e bloqueio da 4ª, conteúdo enviado à IA sem
+e-mail/nome/ids, cartão com compra parcelada em 3 faturas, limite disponível, pagamento de fatura sem
+contagem dupla, dívida (13 meses a 2,99% a.m.), quitação antecipada, pagamento lançado como despesa uma
+única vez, Avalanche × Bola de neve, importação OFX com sugestão de categoria, reimportação marcando
+duplicatas, desfazer importação, relatórios e exportação, pergunta livre no Pro, layout no celular, dados
+visíveis após o fim do Pro e isolamento entre usuários. O roteiro da Etapa 1 (32/32) continuou passando.
+
+**Não verificado:** chamada real à API do Claude (sem chave neste ambiente) — o formato da requisição foi
+validado contra os tipos do SDK oficial `@anthropic-ai/sdk` e por testes com cliente simulado.
+
 ## Segurança e LGPD (Etapa 1)
 
 - Senhas gerenciadas pelo Supabase Auth; confirmação de e-mail obrigatória; senha ≥ 8 com letras e números.
@@ -143,8 +195,8 @@ recuperação de senha, login com nova senha e exclusão de conta.
 
 ## O que falta (próximas etapas)
 
-- **Etapa 2**: cartões e faturas (sem contar gasto em dobro), dívidas e simulador, importação CSV/OFX com
-  duplicatas, assistente IA com limite configurável e registro de uso, desafios financeiros, alertas.
+- **Pendências da Etapa 2**: desafios financeiros nas metas; alertas de contas por e-mail/notificação
+  (hoje os alertas aparecem no painel); integração bancária via Open Finance (só a interface está pronta).
 - **Etapa 3**: Mercado Pago (assinatura recorrente R$ 19,90), webhooks validados e idempotentes, histórico
   de cobranças, cancelamento/reativação, painel administrativo (sem acesso a dados financeiros privados),
   teste Pro de 7 dias controlado. **Serão necessárias as credenciais de teste do Mercado Pago.**

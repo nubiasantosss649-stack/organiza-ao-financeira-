@@ -50,13 +50,37 @@ export const color = z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Cor inválida.");
 /** Checkbox "já pago": marcado envia "paid"; desmarcado não envia nada (= pendente). */
 const statusField = z.preprocess((v) => (v === "paid" ? "paid" : "pending"), z.enum(["paid", "pending"]));
 
+/** Origem do lançamento: conta (padrão) ou cartão de crédito (somente despesas). */
+const sourceFields = {
+  source: z.enum(["account", "card"]).default("account"),
+  account_id: optionalUuid,
+  card_id: optionalUuid,
+};
+
+function refineSource(
+  v: { kind: string; source: "account" | "card"; account_id: string | null; card_id: string | null },
+  ctx: z.RefinementCtx,
+) {
+  if (v.source === "card" && v.kind === "expense") {
+    if (!v.card_id) ctx.addIssue({ code: "custom", path: ["card_id"], message: "Escolha o cartão." });
+  } else if (!v.account_id) {
+    ctx.addIssue({ code: "custom", path: ["account_id"], message: "Escolha a conta." });
+  }
+}
+
+/** Normaliza a origem: exatamente uma entre conta e cartão. */
+export function resolveSource(v: { kind: string; source: "account" | "card"; account_id: string | null; card_id: string | null }) {
+  const card = v.source === "card" && v.kind === "expense";
+  return { account_id: card ? null : v.account_id, card_id: card ? v.card_id : null };
+}
+
 export const transactionSchema = z
   .object({
     kind: z.enum(["income", "expense"]),
     amount: moneyField(),
     description: trimmed(120, "uma descrição"),
     occurred_on: isoDate,
-    account_id: uuid,
+    ...sourceFields,
     category_id: optionalUuid,
     status: statusField,
     notes: z.string().trim().max(500, "Use no máximo 500 caracteres.").optional().transform((v) => v || null),
@@ -64,6 +88,7 @@ export const transactionSchema = z
     repeat_count: z.coerce.number().int().optional(),
   })
   .superRefine((v, ctx) => {
+    refineSource(v, ctx);
     if (v.repeat === "installments" && !(v.repeat_count && v.repeat_count >= 2 && v.repeat_count <= MAX_INSTALLMENTS)) {
       ctx.addIssue({ code: "custom", path: ["repeat_count"], message: `Informe de 2 a ${MAX_INSTALLMENTS} parcelas.` });
     }
@@ -75,16 +100,18 @@ export const transactionSchema = z
     }
   });
 
-export const transactionUpdateSchema = z.object({
-  kind: z.enum(["income", "expense"]),
-  amount: moneyField(),
-  description: trimmed(120, "uma descrição"),
-  occurred_on: isoDate,
-  account_id: uuid,
-  category_id: optionalUuid,
-  status: statusField,
-  notes: z.string().trim().max(500).optional().transform((v) => v || null),
-});
+export const transactionUpdateSchema = z
+  .object({
+    kind: z.enum(["income", "expense"]),
+    amount: moneyField(),
+    description: trimmed(120, "uma descrição"),
+    occurred_on: isoDate,
+    ...sourceFields,
+    category_id: optionalUuid,
+    status: statusField,
+    notes: z.string().trim().max(500).optional().transform((v) => v || null),
+  })
+  .superRefine(refineSource);
 
 export const accountSchema = z.object({
   name: trimmed(60, "o nome da conta"),

@@ -20,6 +20,7 @@ export async function PremiumFeature({
   icon,
   preview,
   children,
+  hasExistingData = false,
 }: {
   feature: string;
   title: string;
@@ -29,19 +30,26 @@ export async function PremiumFeature({
   icon: ReactNode;
   preview?: ReactNode;
   children?: ReactNode;
+  /** Usuário sem o recurso, mas com dados já cadastrados: mostra o conteúdo (somente leitura/uso básico). */
+  hasExistingData?: boolean;
 }) {
   const [ent, plans] = await Promise.all([getEntitlements(), listPlans()]);
   const pro = plans.find((p) => p.id === "pro");
 
-  if (hasFeature(ent, feature)) {
+  const enabled = hasFeature(ent, feature);
+  if (children && (enabled || hasExistingData)) {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
-        {children ?? (
-          <div className="card p-6 text-sm text-slate-600">
-            Este recurso está em desenvolvimento e será liberado na próxima atualização do Controle Fácil Pro.
+        {!enabled ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-money-100 bg-money-50 px-4 py-3 text-sm">
+            <span className="text-slate-700">
+              <Lock className="mr-1.5 inline h-3.5 w-3.5 text-money-700" aria-hidden />
+              Seu plano atual não inclui este recurso. Seus dados continuam disponíveis; para cadastrar novos itens, assine o Pro.
+            </span>
+            <Link href="/app/planos" className="font-semibold text-money-700 hover:underline">Conhecer o Pro</Link>
           </div>
-        )}
+        ) : null}
+        {children}
       </div>
     );
   }

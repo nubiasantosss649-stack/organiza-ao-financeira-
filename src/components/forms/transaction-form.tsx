@@ -24,6 +24,8 @@ export interface TransactionDefaults {
   description: string;
   occurred_on: string;
   account_id: string;
+  /** Preenchido quando o lançamento é uma compra no cartão de crédito. */
+  card_id?: string;
   category_id: string;
   status: "paid" | "pending";
   notes: string;
@@ -32,6 +34,7 @@ export interface TransactionDefaults {
 export function TransactionForm({
   action,
   accounts,
+  cards = [],
   categories,
   defaults,
   mode,
@@ -39,6 +42,8 @@ export function TransactionForm({
 }: {
   action: (prev: ActionState, form: FormData) => Promise<ActionState>;
   accounts: Option[];
+  /** Cartões disponíveis (somente para quem tem o recurso Pro de cartões). */
+  cards?: Option[];
   categories: CategoryOption[];
   defaults: TransactionDefaults;
   mode: "create" | "edit";
@@ -49,6 +54,8 @@ export function TransactionForm({
   const [repeat, setRepeat] = useState<"single" | "installments" | "recurring">("single");
   const [amount, setAmount] = useState(defaults.amount);
   const [count, setCount] = useState("2");
+  const [source, setSource] = useState<"account" | "card">(defaults.card_id ? "card" : "account");
+  const onCard = kind === "expense" && source === "card" && cards.length > 0;
   const err = (n: string) => fieldError(state, n);
 
   const kindCategories = useMemo(() => categories.filter((c) => c.kind === kind), [categories, kind]);
@@ -118,29 +125,56 @@ export function TransactionForm({
             {kindCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </Field>
-        <Field
-          label="Conta ou carteira"
-          htmlFor="account_id"
-          error={err("account_id")}
-          hint={accounts.length === 0 ? <Link href="/app/contas" className="text-navy-600 underline">Cadastre uma conta primeiro</Link> : undefined}
-        >
-          <select id="account_id" name="account_id" required defaultValue={defaults.account_id} className="input" aria-invalid={Boolean(err("account_id"))}>
-            {accounts.length === 0 ? <option value="">Nenhuma conta cadastrada</option> : null}
-            {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-          </select>
-        </Field>
+        {onCard ? (
+          <Field label="Cartão de crédito" htmlFor="card_id" error={err("card_id")} hint="A compra entra na fatura conforme a data de fechamento do cartão.">
+            <select id="card_id" name="card_id" defaultValue={defaults.card_id ?? cards[0]?.id} className="input">
+              {cards.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </Field>
+        ) : (
+          <Field
+            label="Conta ou carteira"
+            htmlFor="account_id"
+            error={err("account_id")}
+            hint={accounts.length === 0 ? <Link href="/app/contas" className="text-navy-600 underline">Cadastre uma conta primeiro</Link> : undefined}
+          >
+            <select id="account_id" name="account_id" required defaultValue={defaults.account_id} className="input" aria-invalid={Boolean(err("account_id"))}>
+              {accounts.length === 0 ? <option value="">Nenhuma conta cadastrada</option> : null}
+              {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+          </Field>
+        )}
       </div>
 
-      <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm">
-        <input type="checkbox" name="status" value="paid" defaultChecked={defaults.status === "paid"}
-          className="h-5 w-5 rounded accent-money-500" />
-        <span>
-          <span className="font-semibold text-navy-900">{kind === "expense" ? "Já foi pago" : "Já recebi"}</span>
-          <span className="block text-xs text-slate-500">
-            Desmarque para registrar como {kind === "expense" ? "conta a pagar" : "valor a receber"}.
+      {kind === "expense" && cards.length > 0 ? (
+        <fieldset>
+          <legend className="label">Forma de pagamento</legend>
+          <div className="grid grid-cols-2 gap-2">
+            {([["account", "Conta / dinheiro / Pix"], ["card", "Cartão de crédito"]] as const).map(([value, label]) => (
+              <label key={value} className={cn(
+                "cursor-pointer rounded-xl border px-2 py-2 text-center text-sm font-medium transition has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-navy-600",
+                source === value ? "border-navy-600 bg-navy-50 text-navy-900" : "border-slate-200 text-slate-600",
+              )}>
+                <input type="radio" name="source" value={value} checked={source === value} onChange={() => setSource(value)} className="sr-only" />
+                {label}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      ) : null}
+
+      {onCard ? null : (
+        <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm">
+          <input type="checkbox" name="status" value="paid" defaultChecked={defaults.status === "paid"}
+            className="h-5 w-5 rounded accent-money-500" />
+          <span>
+            <span className="font-semibold text-navy-900">{kind === "expense" ? "Já foi pago" : "Já recebi"}</span>
+            <span className="block text-xs text-slate-500">
+              Desmarque para registrar como {kind === "expense" ? "conta a pagar" : "valor a receber"}.
+            </span>
           </span>
-        </span>
-      </label>
+        </label>
+      )}
 
       {mode === "create" ? (
         <fieldset className="space-y-3">

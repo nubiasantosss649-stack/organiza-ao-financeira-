@@ -8,7 +8,7 @@ import { friendlyDbError } from "@/lib/errors";
 import { buildSeries } from "@/lib/finance";
 import { todayISO } from "@/lib/dates";
 import { safeNext } from "@/lib/redirect";
-import { fieldErrors, formToObject, transactionSchema, transactionUpdateSchema } from "@/lib/validation";
+import { fieldErrors, formToObject, resolveSource, transactionSchema, transactionUpdateSchema } from "@/lib/validation";
 import type { ActionState } from "@/lib/types";
 
 function refresh() {
@@ -31,9 +31,10 @@ export async function createTransaction(_prev: ActionState, form: FormData): Pro
   });
   const groupId = series.length > 1 ? crypto.randomUUID() : null;
 
+  const src = resolveSource(v);
   const rows = series.map((item) => ({
     kind: v.kind,
-    account_id: v.account_id,
+    ...src,
     category_id: v.category_id,
     notes: v.notes,
     amount_cents: item.amountCents,
@@ -69,7 +70,7 @@ export async function updateTransaction(id: string, _prev: ActionState, form: Fo
       amount_cents: v.amount,
       description: v.description,
       occurred_on: v.occurred_on,
-      account_id: v.account_id,
+      ...resolveSource(v),
       category_id: v.category_id,
       status: v.status,
       paid_on: v.status === "paid" ? v.occurred_on : null,

@@ -12,7 +12,8 @@ import { TransactionRow } from "@/components/app/transaction-row";
 import { getEntitlements, requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import {
-  budgetSpending, categoryTotals, listAccounts, listActiveBudgets, listCategories, listGoals, monthParam, monthlySummary,
+  budgetSpending, categoryTotals, listAccounts, listActiveBudgets, listCards, listCategories, listGoals, monthParam, monthlySummary,
+  openCardInvoices, sourceName,
 } from "@/lib/queries";
 import { addMonths, endOfMonth, formatDateBR, formatMonthLong, formatMonthShort, todayISO } from "@/lib/dates";
 import { budgetStatus, computeDashboard, goalPlan, type MonthTotals } from "@/lib/finance";
@@ -33,7 +34,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/app">)
   const today = todayISO();
   const supabase = await createClient();
 
-  const [accounts, summary, catTotals, pendingRes, recentRes, budgets, goals, categories, ent] = await Promise.all([
+  const [accounts, summary, catTotals, pendingRes, recentRes, budgets, goals, categories, ent, cards, invoices] = await Promise.all([
     listAccounts({ includeArchived: true }),
     monthlySummary(addMonths(month, -5), month),
     categoryTotals(month, monthEnd),
@@ -55,11 +56,23 @@ export default async function DashboardPage({ searchParams }: PageProps<"/app">)
     listGoals("active"),
     listCategories({ includeArchived: true }),
     getEntitlements(),
+    listCards({ includeArchived: true }),
+    openCardInvoices(monthEnd),
   ]);
 
   if (!user.onboardingCompleted && accounts.length === 0) redirect("/app/boas-vindas");
 
-  const pending = (pendingRes.data ?? []).map((p) => ({ ...p, amount_cents: Number(p.amount_cents) }));
+  // Contas pendentes + faturas de cartão em aberto (o pagamento da fatura não é despesa nova).
+  const pending = [
+    ...(pendingRes.data ?? []).map((p) => ({ ...p, amount_cents: Number(p.amount_cents), href: `/app/lancamentos/${p.id}` })),
+    ...invoices.map((i) => ({
+      id: `fatura-${i.card_id}-${i.invoice_due_on}`,
+      description: `Fatura ${i.card_name}`,
+      amount_cents: i.remaining_cents,
+      occurred_on: i.invoice_due_on,
+      href: `/app/cartoes/${i.card_id}?fatura=${i.invoice_due_on}`,
+    })),
+  ].sort((a, b) => a.occurred_on.localeCompare(b.occurred_on));
   const recent = (recentRes.data ?? []) as Transaction[];
   const current = summary[summary.length - 1] ?? EMPTY_MONTH(month);
   const previous = summary[summary.length - 2] ?? EMPTY_MONTH(addMonths(month, -1));
@@ -82,6 +95,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/app">)
   }));
   const catById = new Map(categories.map((c) => [c.id, c]));
   const accById = new Map(accounts.map((a) => [a.id, a]));
+  const cardById = new Map(cards.map((c) => [c.id, c]));
   const activeBudgets = budgets.filter((b) => b.is_active);
   const isCurrentMonth = month.slice(0, 7) === today.slice(0, 7);
   const prevMonthParam = addMonths(month, -1).slice(0, 7);
@@ -136,7 +150,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/app">)
           </div>
           <p className="mt-3 flex items-start gap-1.5 text-[11px] leading-snug text-navy-100/60">
             <Info className="mt-px h-3 w-3 shrink-0" aria-hidden />
-            Disponível = saldo das contas − contas pendentes vencidas e a vencer até o fim do mês.
+            Disponível = saldo das contas − contas pendentes e faturas de cartão vencidas ou a vencer até o fim do mês.
           </p>
         </div>
 
@@ -176,7 +190,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/app">)
           previous={dash.previousIncomeCents}
         />
         <StatCard
-          label="Despesas pagas"
+          label="Despesas do mês"
           value={dash.expenseCents}
           icon={<ArrowDownRight className="h-4 w-4 text-navy-600" aria-hidden />}
           change={dash.expenseChangePct}
@@ -258,7 +272,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/app">)
                 const late = p.occurred_on < today;
                 return (
                   <li key={p.id}>
-                    <Link href={`/app/lancamentos/${p.id}`} className="flex items-center justify-between gap-3 py-2.5 hover:bg-slate-50">
+                    <Link href={p.href} className="flex items-center justify-between gap-3 py-2.5 hover:bg-slate-50">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium text-navy-900">{p.description}</p>
                         <p className="text-xs text-slate-500">Vence em {formatDateBR(p.occurred_on)}</p>
@@ -283,7 +297,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/app">)
           {recent.length ? (
             <ul className="divide-y divide-slate-100">
               {recent.map((t) => (
-                <TransactionRow key={t.id} tx={{ ...t, amount_cents: Number(t.amount_cents) }} category={t.category_id ? catById.get(t.category_id) : undefined} accountName={accById.get(t.account_id)?.name} today={today} compact />
+                <TransactionRow key={t.id} tx={{ ...t, amount_cents: Number(t.amount_cents) }} category={t.category_id ? catById.get(t.category_id) : undefined} accountName={sourceName(t, accById, cardById)} today={today} compact />
               ))}
             </ul>
           ) : (
