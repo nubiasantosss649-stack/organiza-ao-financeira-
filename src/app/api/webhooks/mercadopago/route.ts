@@ -1,8 +1,9 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { after, NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getBillingProvider, webhookSecret } from "@/lib/billing";
 import { verifyWebhookSignature } from "@/lib/billing/signature";
 import { normalizeTopic, processNotification } from "@/lib/billing/process";
+import { flushBillingEmails } from "@/lib/email/run";
 
 /**
  * Webhook do Mercado Pago.
@@ -74,6 +75,9 @@ export async function POST(request: NextRequest) {
     await admin.from("webhook_events")
       .update({ status: result.status, error: result.detail.slice(0, 200), processed_at: new Date().toISOString() })
       .eq("id", inserted!.id);
+    // E-mails de cobrança (recibo, falha, cancelamento) saem depois da resposta;
+    // se falharem, o cron /api/cron/emails tenta de novo.
+    after(() => flushBillingEmails().catch(() => undefined));
     return NextResponse.json({ ok: true });
   } catch (e) {
     const message = e instanceof Error ? e.message.slice(0, 200) : "erro";

@@ -98,6 +98,6 @@ function copyCookies(from: NextResponse, to: NextResponse) {
 
 export const config = {
   matcher: [
-    "/((?!api/webhooks|_next/static|_next/image|favicon.ico|icons/|screenshots/|manifest.webmanifest|sw.js|robots.txt|sitemap.xml|opengraph-image|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!api/webhooks|api/cron|_next/static|_next/image|favicon.ico|icons/|screenshots/|manifest.webmanifest|sw.js|robots.txt|sitemap.xml|opengraph-image|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };

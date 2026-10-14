@@ -163,6 +163,20 @@ nas renovações. Sem contagem regressiva falsa nem desconto fictício.
 - **Nenhum acesso aos dados financeiros dos clientes**: as funções do painel retornam só agregados e o RLS
   continua impedindo o administrador de ler lançamentos de terceiros (coberto por teste).
 
+### E-mails de cobrança
+
+- Enviados automaticamente: **recibo** (pagamento aprovado), **pagamento recusado** (com a data até quando o
+  Pro continua) e **assinatura cancelada** (com a data final do acesso e o aviso de que nenhum dado é apagado).
+- Os eventos de cobrança no banco colocam o e-mail numa fila (`email_outbox`) na mesma transação; cada
+  e-mail tem uma chave única, então reentregas do webhook **nunca duplicam** o envio. O pedido de
+  cancelamento e a confirmação do Mercado Pago geram um só e-mail; checkout abandonado não gera e-mail.
+- O envio acontece logo após o webhook/cancelamento (`after()`); falhas temporárias de SMTP voltam para a
+  fila com espera crescente (até 6 tentativas) e são reenviadas por `GET /api/cron/emails`
+  (protegido por `CRON_SECRET`; agendado no `vercel.json`).
+- A fila guarda só valores e datas: o endereço é buscado na hora do envio, nada de cartão, e o log de erro
+  registra apenas o código do erro. O `/admin` mostra só contagens (enviados, na fila, com falha).
+- Configuração: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `EMAIL_FROM` (qualquer provedor SMTP).
+
 ### Configurar o Mercado Pago (ambiente de testes primeiro)
 
 1. Em *Suas integrações*, crie uma aplicação (produto: Assinaturas) e copie o **Access Token de teste**.
@@ -234,14 +248,15 @@ E-mails de confirmação no ambiente local aparecem no Mailpit (endereço exibid
 ```bash
 npm run lint        # ESLint
 npm run typecheck   # tipos (inclui rotas)
-npm test            # 103 testes unitários (inclui assinatura do webhook, status e adaptador do Mercado Pago)
+npm test            # 110 testes unitários (inclui assinatura do webhook, status e adaptador do Mercado Pago)
                     # e também: dinheiro, datas, parcelas, dashboard, metas, validação, CSV,
                     # faturas, simulador de dívidas, parsers OFX/CSV, duplicatas, categorização,
-                    # recorrências, projeção, contexto e chamada da IA (cliente simulado)
-npm run test:db     # 47 testes de banco num PostgreSQL temporário: RLS, isolamento, limites, Pro,
+                    # recorrências, projeção, contexto e chamada da IA (cliente simulado), modelos e fila dos e-mails de cobrança
+npm run test:db     # 53 testes de banco num PostgreSQL temporário: RLS, isolamento, limites, Pro,
                     # recursos Pro protegidos, faturas sem contagem dupla, importação, limites de IA,
                     # cobranças (ativação só com pagamento aprovado, idempotência, recusa, cancelamento,
-                    # estorno), teste Pro, promoções e permissões do painel admin
+                    # estorno), teste Pro, promoções, permissões do painel admin e fila de e-mails
+                    # de cobrança (enfileiramento, sem duplicidade, reenvio com espera, permissões)
 npm run build       # build de produção
 ```
 
@@ -296,6 +311,12 @@ deste ambiente bloqueia `api.mercadopago.com` e ainda não há credenciais de te
 dos status e da assinatura do webhook segue a documentação pública do Mercado Pago, mas **precisa ser
 validado no sandbox antes de ligar `BILLING_ENABLED`**.
 
+### Verificação ponta a ponta (e-mails de cobrança)
+
+Roteiro de assinatura com SMTP local de captura: 35 de 35 verificações, incluindo recibo enviado uma vez
+(mesmo com o webhook reentregue), aviso de pagamento recusado, um único e-mail de cancelamento, fila sem
+pendências ao final e rota de reenvio recusando chamadas sem `CRON_SECRET`.
+
 ## Segurança e LGPD (Etapa 1)
 
 - Senhas gerenciadas pelo Supabase Auth; confirmação de e-mail obrigatória; senha ≥ 8 com letras e números.
@@ -312,8 +333,9 @@ validado no sandbox antes de ligar `BILLING_ENABLED`**.
 - **Pendências da Etapa 2**: desafios financeiros nas metas; alertas de contas por e-mail/notificação
   (hoje os alertas aparecem no painel); integração bancária via Open Finance (só a interface está pronta).
 - **Pendências da Etapa 3**: validar o fluxo no sandbox do Mercado Pago (credenciais de teste + liberar
-  `api.mercadopago.com` na rede) e só então ligar `BILLING_ENABLED`; e-mails transacionais de cobrança
-  (recibo, recusa, cancelamento); conciliação periódica com o provedor caso algum webhook se perca.
+  `api.mercadopago.com` na rede) e só então ligar `BILLING_ENABLED`; configurar um provedor SMTP real
+  para os e-mails de cobrança (já implementados); conciliação periódica com o provedor caso algum webhook
+  se perca.
 - **Pendências da Etapa 4**: publicar de fato (exige suas contas na Vercel/Supabase e o domínio — siga o
   `DEPLOY.md`), revisão jurídica da Política de Privacidade e dos Termos, e testes em aparelhos reais
   (Android e iPhone) com a URL publicada.
