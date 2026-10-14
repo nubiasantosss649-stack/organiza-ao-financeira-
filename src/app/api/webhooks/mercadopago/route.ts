@@ -35,12 +35,21 @@ export async function POST(request: NextRequest) {
     secret,
   });
   if (!valid || !requestId || !dataId) {
-    await admin.from("webhook_events").insert({
-      provider: "mercadopago",
-      request_id: `invalid-${crypto.randomUUID()}`,
-      topic,
-      status: "invalid_signature",
-    });
+    // Registra tentativas inválidas para auditoria, com teto para não permitir encher o banco.
+    const since = new Date(Date.now() - 10 * 60_000).toISOString();
+    const { count } = await admin
+      .from("webhook_events")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "invalid_signature")
+      .gte("received_at", since);
+    if ((count ?? 0) < 50) {
+      await admin.from("webhook_events").insert({
+        provider: "mercadopago",
+        request_id: `invalid-${crypto.randomUUID()}`,
+        topic,
+        status: "invalid_signature",
+      });
+    }
     return NextResponse.json({ error: "invalid_signature" }, { status: 401 });
   }
 

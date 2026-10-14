@@ -1,4 +1,6 @@
+import Image from "next/image";
 import Link from "next/link";
+import { InstallAppButton } from "@/components/pwa/install-button";
 import {
   BarChart3, Bot, Check, CreditCard, FileUp, HandCoins, Lock, PieChart, ShieldCheck, Smartphone, Target, Wallet,
 } from "lucide-react";
@@ -69,36 +71,56 @@ export default async function LandingPage({ searchParams }: PageProps<"/">) {
                 Conhecer o Pro
               </ButtonLink>
             </div>
+            <InstallAppButton tone="dark" className="mt-4" />
           </div>
 
-          {/* Ilustração do painel (não são dados reais) */}
-          <figure className="relative">
-            <div className="rounded-3xl bg-white p-5 text-navy-900 shadow-2xl">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-medium text-slate-500">Saldo total</p>
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-slate-500">Ilustração</span>
-              </div>
-              <p className="tabular text-3xl font-bold">R$ 3.250,00</p>
-              <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
-                <div className="rounded-xl bg-money-50 p-2.5"><p className="text-slate-500">Receitas</p><p className="tabular font-bold text-money-700">R$ 4.500</p></div>
-                <div className="rounded-xl bg-navy-50 p-2.5"><p className="text-slate-500">Despesas</p><p className="tabular font-bold">R$ 2.870</p></div>
-                <div className="rounded-xl bg-warning-50 p-2.5"><p className="text-slate-500">A pagar</p><p className="tabular font-bold text-warning-700">R$ 380</p></div>
-              </div>
-              <div className="mt-4 space-y-2.5">
-                {[["Mercado", 82], ["Moradia", 64], ["Transporte", 38], ["Restaurantes", 30]].map(([n, w]) => (
-                  <div key={n}>
-                    <div className="mb-1 flex justify-between text-xs"><span>{n}</span></div>
-                    <div className="h-2 rounded-full bg-slate-100"><div className="h-2 rounded-full bg-navy-600" style={{ width: `${w}%` }} /></div>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-4 flex gap-2 rounded-2xl bg-slate-50 p-3 text-xs text-slate-700">
-                <Bot className="h-4 w-4 shrink-0 text-money-600" aria-hidden />
-                Você gastou R$ 480 em restaurantes neste mês. Reduzindo 25%, economizaria cerca de R$ 120 por mês.
-              </div>
+          {/* Telas reais do app, com dados de exemplo (identificadas na legenda) */}
+          <figure className="relative mx-auto w-full max-w-md lg:max-w-none">
+            <div className="relative">
+              <Image
+                src="/screenshots/painel.jpg"
+                alt="Painel do Controle Fácil no computador, com saldo, receitas, despesas e gráficos"
+                width={992}
+                height={860}
+                priority
+                className="hidden w-full rounded-2xl shadow-2xl ring-1 ring-white/10 sm:block"
+              />
+              <Image
+                src="/screenshots/painel-celular.jpg"
+                alt="Painel do Controle Fácil no celular"
+                width={390}
+                height={844}
+                priority
+                className="mx-auto w-56 rounded-[2rem] border-4 border-navy-950 shadow-2xl sm:absolute sm:-bottom-10 sm:-left-8 sm:w-40"
+              />
             </div>
-            <figcaption className="mt-3 text-center text-xs text-navy-100/60">Ilustração do aplicativo com valores de exemplo.</figcaption>
+            <figcaption className="mt-14 text-center text-xs text-navy-100/60 sm:mt-14">Telas reais do aplicativo, com dados de exemplo.</figcaption>
           </figure>
+        </div>
+      </section>
+
+      {/* Por dentro do app */}
+      <section className="bg-surface py-16" aria-labelledby="por-dentro">
+        <div className="mx-auto max-w-6xl px-4">
+          <h2 id="por-dentro" className="text-center text-3xl font-bold tracking-tight">Veja o app por dentro</h2>
+          <p className="mx-auto mt-2 max-w-2xl text-center text-slate-600">Telas reais do Controle Fácil, com dados de exemplo.</p>
+          <div className="mt-10 grid gap-6 md:grid-cols-3">
+            {[
+              { src: "/screenshots/lancamentos-celular.jpg", w: 390, h: 844, t: "Lançamentos no celular", d: "Registre gastos em segundos, filtre por período e marque contas como pagas." },
+              { src: "/screenshots/metas.jpg", w: 992, h: 700, t: "Minhas metas", d: "Acompanhe o progresso e saiba quanto guardar por mês." },
+              { src: "/screenshots/dividas.jpg", w: 992, h: 860, t: "Minhas dívidas (Pro)", d: "Compare estratégias de quitação com hipóteses sempre explicadas." },
+            ].map((x) => (
+              <figure key={x.src} className="card overflow-hidden">
+                <div className="relative h-72 overflow-hidden bg-navy-50">
+                  <Image src={x.src} alt={x.t} width={x.w} height={x.h} className="w-full object-cover object-top" />
+                </div>
+                <figcaption className="p-4">
+                  <p className="font-semibold">{x.t}</p>
+                  <p className="mt-1 text-sm text-slate-600">{x.d}</p>
+                </figcaption>
+              </figure>
+            ))}
+          </div>
         </div>
       </section>
 

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ChevronRight, Lock, LogOut } from "lucide-react";
 import { ACCOUNT_NAV, MAIN_NAV, PRO_NAV } from "@/components/app/nav-items";
 import { getEntitlements } from "@/lib/auth";
+import { InstallAppButton } from "@/components/pwa/install-button";
 
 export const metadata: Metadata = { title: "Menu" };
 
@@ -30,6 +31,7 @@ export default async function MenuPage() {
   return (
     <div className="space-y-5">
       <h1 className="text-2xl font-bold">Menu</h1>
+      <InstallAppButton />
       {section("Finanças", MAIN_NAV.filter((i) => i.href !== "/app"))}
       {section("Recursos Pro", PRO_NAV, !isPro)}
       {section("Conta", ACCOUNT_NAV)}

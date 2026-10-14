@@ -12,7 +12,8 @@
     "test:db": "bash scripts/test-db.sh",
     "test:all": "npm run test && npm run test:db",
     "db:start": "supabase start",
-    "db:reset": "supabase db reset"
+    "db:reset": "supabase db reset",
+    "check": "npm run lint && npm run typecheck && npm test && npm run build"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",

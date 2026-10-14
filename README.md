@@ -14,7 +14,7 @@ Foco em pessoas que querem controlar gastos, organizar dívidas, economizar e me
 | 1 — App básico | Estrutura, layout, autenticação, banco, receitas/despesas, categorias, dashboard, gráficos, metas, plano Grátis | ✅ Concluída |
 | 2 — Recursos Pro | Cartões, dívidas, importação CSV/OFX, análises, assistente IA, limites | ✅ Concluída (liberação para clientes depende da Etapa 3) |
 | 3 — Assinaturas | Mercado Pago, webhooks, cancelamento, painel admin | ✅ Implementada · ⚠️ falta validar no sandbox do Mercado Pago (checkout desligado até lá) |
-| 4 — Lançamento | Landing final, PWA completo, segurança, deploy | ⏳ Landing básica, manifesto e ícones prontos |
+| 4 — Lançamento | Landing final, PWA, segurança, testes finais, hospedagem e domínio | ✅ Pronta para publicar (veja `DEPLOY.md`) |
 
 ## Tecnologias
 
@@ -172,6 +172,32 @@ nas renovações. Sem contagem regressiva falsa nem desconto fictício.
 4. Teste o ciclo completo com usuários de teste do Mercado Pago (aprovação, recusa, cancelamento).
    Só então use `BILLING_ENABLED=true` e troque para as credenciais de produção.
 
+## Lançamento (Etapa 4)
+
+- **Página inicial** com telas reais do app (capturas com dados de exemplo, identificadas como tal),
+  comparação Grátis × Pro vinda do banco, perguntas frequentes, links legais e de suporte, imagem de
+  compartilhamento (`/og.png`), `robots.txt` e `sitemap.xml`.
+- **PWA**: manifesto com ícones normais e *maskable*, botão "Instalar app" (Android/Chrome/Edge com o
+  aviso nativo; iPhone com o passo a passo do Safari), service worker próprio (`public/sw.js`).
+  - O service worker guarda em cache **somente arquivos estáticos e a página `/offline`**; nunca páginas do
+    app, respostas de API ou dados financeiros (coberto por teste).
+  - **Não há funcionamento offline**: sem internet, aparece uma página honesta de "sem conexão" e, dentro do
+    app, um aviso. Os dados voltam assim que a conexão retorna.
+- **Segurança**: Content Security Policy com *nonce* por requisição (scripts só do próprio site), HSTS,
+  `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`, `Cross-Origin-Opener-Policy`;
+  service worker com CSP própria e sem cache; teto para registro de webhooks inválidos; `npm audit` sem
+  vulnerabilidades nas dependências de produção; nenhum segredo no código enviado ao navegador; todas as
+  Server Actions validam a sessão no servidor.
+- **Operação**: `GET /api/health` (app + banco) para monitoramento; `vercel.json` com região São Paulo;
+  guia completo de produção e domínio em **[DEPLOY.md](DEPLOY.md)**; `npm run check` roda lint, tipos,
+  testes e build.
+
+## Como testar no celular
+
+- **Android (Chrome)**: abra o site → botão "Instalar app" (ou menu ⋮ → "Instalar app").
+- **iPhone (Safari)**: abra o site → Compartilhar → "Adicionar à Tela de Início".
+- Durante o desenvolvimento, use a URL de Preview da Vercel no celular (HTTPS é necessário para instalar).
+
 ## Plano Grátis (Etapa 1)
 
 Cadastro e login · dashboard · registro manual **ilimitado** · categorias personalizadas · gráficos básicos ·
@@ -257,6 +283,14 @@ métricas confirmado × projetado sem e-mails de clientes, edição de limite de
 7 dias sem cobrança, assinatura com preço promocional e layout no celular. Etapas 1 (32/32) e 2 (45/45)
 continuaram passando.
 
+### Verificação ponta a ponta (Etapa 4)
+
+PWA e operação: 15 de 15 verificações (manifesto e ícones, service worker registrado, cache apenas de
+arquivos estáticos, nenhuma página do app/API em cache, página "sem conexão" ao derrubar o servidor, volta
+ao normal com conexão, aviso dentro do app, robots, sitemap, health check e metadados de compartilhamento).
+Zero violações de CSP no console em 13 páginas; página inicial sem rolagem horizontal no celular. Os três
+roteiros anteriores (32 + 45 + 30 verificações) passaram com a CSP ativa.
+
 **Não verificado (bloqueado neste ambiente):** chamadas reais à API e ao sandbox do Mercado Pago — a rede
 deste ambiente bloqueia `api.mercadopago.com` e ainda não há credenciais de teste. O formato das requisições,
 dos status e da assinatura do webhook segue a documentação pública do Mercado Pago, mas **precisa ser
@@ -280,5 +314,7 @@ validado no sandbox antes de ligar `BILLING_ENABLED`**.
 - **Pendências da Etapa 3**: validar o fluxo no sandbox do Mercado Pago (credenciais de teste + liberar
   `api.mercadopago.com` na rede) e só então ligar `BILLING_ENABLED`; e-mails transacionais de cobrança
   (recibo, recusa, cancelamento); conciliação periódica com o provedor caso algum webhook se perca.
-- **Etapa 4**: landing com capturas reais, service worker/instalação PWA, CSP, testes finais, domínio e deploy.
+- **Pendências da Etapa 4**: publicar de fato (exige suas contas na Vercel/Supabase e o domínio — siga o
+  `DEPLOY.md`), revisão jurídica da Política de Privacidade e dos Termos, e testes em aparelhos reais
+  (Android e iPhone) com a URL publicada.
 - Pequenos itens: transferências entre contas; edição em lote de séries recorrentes.
