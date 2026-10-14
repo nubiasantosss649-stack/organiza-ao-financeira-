@@ -1,0 +1,74 @@
+@import "tailwindcss";
+
+/* Identidade visual CONTROLE FÁCIL
+   Azul-marinho = segurança e confiança · Verde = dinheiro e crescimento · Branco = clareza */
+@theme {
+  --color-navy-950: #061428;
+  --color-navy-900: #0b1f3a;
+  --color-navy-800: #112c52;
+  --color-navy-700: #18396a;
+  --color-navy-600: #2f64a8;
+  --color-navy-100: #e3ebf6;
+  --color-navy-50: #f2f6fb;
+
+  --color-money-700: #0b7a52;
+  --color-money-600: #0e8f60;
+  --color-money-500: #12a26e;
+  --color-money-400: #34c48b;
+  --color-money-100: #d9f5e8;
+  --color-money-50: #eefbf5;
+
+  --color-danger-700: #b42318;
+  --color-danger-600: #d92d20;
+  --color-danger-100: #fee4e2;
+  --color-danger-50: #fef3f2;
+  --color-warning-700: #b54708;
+  --color-warning-100: #fef0c7;
+  --color-warning-50: #fffaeb;
+
+  --color-surface: #f6f8fb;
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  --shadow-card: 0 1px 2px rgb(11 31 58 / 0.04), 0 1px 3px rgb(11 31 58 / 0.06);
+}
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background: var(--color-surface);
+  color: var(--color-navy-900);
+}
+
+/* Números financeiros com largura fixa para alinhar colunas. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@layer components {
+  .input {
+    @apply block w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-base text-navy-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-navy-600 focus:ring-4 focus:ring-navy-600/15 disabled:bg-slate-50 disabled:text-slate-500 sm:text-sm;
+  }
+  .input[aria-invalid="true"] {
+    @apply border-danger-600 focus:ring-danger-600/15;
+  }
+  .label {
+    @apply mb-1.5 block text-sm font-medium text-slate-700;
+  }
+  .card {
+    @apply rounded-2xl border border-slate-200/80 bg-white shadow-card;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}

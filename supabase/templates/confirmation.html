@@ -1,0 +1,8 @@
+<div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;color:#0b1f3a">
+  <h2 style="color:#0b1f3a">Bem-vindo ao Controle Fácil!</h2>
+  <p>Seu dinheiro organizado, sua vida mais tranquila.</p>
+  <p>Confirme seu e-mail para ativar sua conta:</p>
+  <p><a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/app/boas-vindas"
+        style="display:inline-block;background:#12a26e;color:#fff;padding:12px 20px;border-radius:10px;text-decoration:none;font-weight:bold">Confirmar e-mail</a></p>
+  <p style="font-size:12px;color:#64748b">Se você não criou uma conta, ignore este e-mail.</p>
+</div>
