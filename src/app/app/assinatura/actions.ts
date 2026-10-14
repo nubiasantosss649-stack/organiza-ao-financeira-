@@ -1,5 +1,6 @@
 "use server";
 
+import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { authedClient } from "@/lib/auth";
@@ -7,6 +8,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { billingEnabled, getBillingProvider } from "@/lib/billing";
 import { getMySubscription, hasPaidAccess, syncSubscriptionFromProvider } from "@/lib/subscription";
 import { siteUrl } from "@/lib/env";
+import { flushBillingEmails } from "@/lib/email/run";
 import type { ActionState } from "@/lib/types";
 
 /** Inicia o checkout no Mercado Pago. O Pro só é liberado depois do pagamento aprovado (webhook). */
@@ -70,6 +72,7 @@ export async function cancelSubscription(): Promise<ActionState> {
       p_provider_status: remote.providerStatus.slice(0, 40), p_next_charge_at: null,
     });
     await admin.rpc("billing_mark_cancel_requested", { p_subscription: sub.id });
+    after(() => flushBillingEmails().catch(() => undefined));
   } catch {
     return { error: "Não foi possível cancelar agora. Tente novamente em instantes ou fale com o suporte." };
   }

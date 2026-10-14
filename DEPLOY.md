@@ -42,6 +42,10 @@ São Paulo `sa-east-1`). Qualquer hospedagem Node.js 22 que rode `npm run build 
 | `MERCADOPAGO_ACCESS_TOKEN` | token de **produção** (após validar o de teste) | **não** |
 | `MERCADOPAGO_WEBHOOK_SECRET` | assinatura secreta do webhook | **não** |
 | `BILLING_ENABLED` | `false` até validar no sandbox; depois `true` | não |
+| `SMTP_HOST` / `SMTP_PORT` | servidor SMTP do provedor de e-mail (ex.: Resend, SES, Brevo) | não |
+| `SMTP_USER` / `SMTP_PASS` | credenciais SMTP | **não** |
+| `EMAIL_FROM` | `Controle Fácil <cobranca@seudominio.com.br>` (domínio verificado no provedor) | não |
+| `CRON_SECRET` | valor aleatório longo (protege `/api/cron/emails`) | **não** |
 
 3. Faça o deploy e verifique `https://SEU-DOMINIO/api/health` → `{"status":"ok","database":"ok"}`.
 4. Use um ambiente **Preview** separado (outro projeto Supabase de homologação + credenciais de teste do
@@ -68,6 +72,16 @@ Siga a seção "Configurar o Mercado Pago" do README. Ordem obrigatória:
 2. ciclo completo com usuários de teste (aprovação, recusa, cancelamento, estorno);
 3. só então credenciais de **produção**, webhook para o domínio final e `BILLING_ENABLED=true`.
 
+## 4.1 E-mails de cobrança
+
+1. Crie uma conta num provedor de e-mail transacional e **verifique o domínio** (registros SPF, DKIM e,
+   de preferência, DMARC no DNS) para os e-mails não caírem no spam.
+2. Preencha `SMTP_*`, `EMAIL_FROM` e `CRON_SECRET` na Vercel.
+3. O `vercel.json` agenda `/api/cron/emails` uma vez por dia (limite do plano Hobby). No plano Pro da
+   Vercel, pode aumentar a frequência (ex.: `*/15 * * * *`). O envio normal é imediato; o cron só reenvia
+   falhas.
+4. Faça um pagamento de teste no sandbox e confira o recibo; acompanhe as contagens em `/admin`.
+
 ## 5. Assistente de IA
 
 Crie a chave em console.anthropic.com, defina **limites de gasto** na própria conta da Anthropic e
@@ -81,6 +95,7 @@ acompanhe o custo estimado em `/admin`. Os limites por plano são configurados e
 - [ ] E-mail de suporte funcionando
 - [ ] Administrador criado e `/admin` acessível só para ele
 - [ ] Mercado Pago validado no sandbox antes de `BILLING_ENABLED=true`
+- [ ] SMTP com domínio verificado; recibo de teste chegou na caixa de entrada (não no spam)
 - [ ] Limite de gastos configurado na Anthropic
 - [ ] Backups do banco ativos
 - [ ] Teste no celular: Android (Chrome → "Instalar app") e iPhone (Safari → Compartilhar → "Adicionar à Tela de Início")

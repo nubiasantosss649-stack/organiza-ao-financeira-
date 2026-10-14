@@ -36,9 +36,13 @@ function Stat({ label, value, hint }: { label: string; value: string | number; h
 
 export default async function AdminHome() {
   const { supabase } = await requireAdmin();
-  const { data, error } = await supabase.rpc("admin_metrics");
+  const [{ data, error }, { data: emails }] = await Promise.all([
+    supabase.rpc("admin_metrics"),
+    supabase.rpc("admin_email_stats"),
+  ]);
   if (error || !data) throw new Error("Falha ao carregar métricas.");
   const m = data as Metrics;
+  const e = (emails ?? {}) as Record<string, number>;
   const usd = (micro: number) => `US$ ${(micro / 1_000_000).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
@@ -85,6 +89,13 @@ export default async function AdminHome() {
             </tbody>
           </table>
         </Card>
+      </section>
+
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Stat label="E-mails de cobrança enviados" value={e.sent ?? 0} hint="Últimos 30 dias" />
+        <Stat label="E-mails na fila" value={(e.pending ?? 0) + (e.sending ?? 0)} hint="Reenvio automático" />
+        <Stat label="E-mails com falha" value={e.failed ?? 0} hint="Após 6 tentativas" />
+        <Stat label="E-mails sem destinatário" value={e.skipped ?? 0} />
       </section>
     </div>
   );
